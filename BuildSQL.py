@@ -6,11 +6,15 @@ import os, re
 #CTRL+H
 #~*~*~*
 #Replace Row # with Step
-xl = pd.ExcelFile('excels/TF10_AEW_2017108.xlsx')
+
+#Choose Excel file to load
+EXCEL_PATH = 'excels/TF10_AEW_2017108.xlsx'
+xl = pd.ExcelFile(EXCEL_PATH)
 df = xl.parse(xl.sheet_names[-1], verbose = True)
 
 #Adds Notes Col
 df['Notes'] = ''
+df['Exec'] = ''
 
 #Just some formatting shit, nothing to look into really
 def rolling_group(val):
@@ -32,7 +36,12 @@ groupFunct = lambda g: pd.Series([joinFunc(g, col) for col in g.columns],index =
 df = groups.apply(groupFunct)
 
 #connects to database
-conn = sqlite3.connect(xl.sheet_names[-1] + '.db')
+dbName = xl.sheet_names[-1] + '.db'
+
+#Edit this line to choose directory (for Windows replace '\' with '\\')
+DBDIR = os.path.dirname(os.path.realpath(__file__))
+
+conn = sqlite3.connect(os.path.join(DBDIR, dbName))
 
 #Writes Script Table based on name of last sheet in Excel Book
 df.to_sql(xl.sheet_names[-1], conn, if_exists = 'replace', index = False, chunksize = 1)
@@ -40,7 +49,7 @@ df.to_sql(xl.sheet_names[-1], conn, if_exists = 'replace', index = False, chunks
 #Create PACR Table
 pCols =['Created', 'Author', 'Step', 'Type', 'Resp', 'Rationale', 'Steps', 'State', 'FD']
 #For Reference Script Table is:
-#['Step', 'Timing', 'Milestone/Activity - Mnemonic', 'R-Description', 'Total', 'Notes']
+#['Step', 'Timing', 'Milestone/Activity - Mnemonic', 'R-Description', 'Total', 'Notes', 'Exec']
 pdf = pd.DataFrame(columns = pCols)
 pdf = pdf.fillna('')
 #Writes PACR Table

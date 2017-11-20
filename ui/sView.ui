@@ -39,6 +39,9 @@
           <property name="sizeAdjustPolicy">
            <enum>QAbstractScrollArea::AdjustToContentsOnFirstShow</enum>
           </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::NoEditTriggers</set>
+          </property>
           <property name="selectionBehavior">
            <enum>QAbstractItemView::SelectRows</enum>
           </property>
@@ -71,6 +74,9 @@
             <height>0</height>
            </size>
           </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::NoEditTriggers</set>
+          </property>
           <property name="selectionBehavior">
            <enum>QAbstractItemView::SelectRows</enum>
           </property>
@@ -79,6 +85,9 @@
           </attribute>
           <attribute name="horizontalHeaderMinimumSectionSize">
            <number>40</number>
+          </attribute>
+          <attribute name="horizontalHeaderStretchLastSection">
+           <bool>true</bool>
           </attribute>
          </widget>
         </item>
@@ -558,6 +567,7 @@
     <addaction name="openMenu"/>
     <addaction name="separator"/>
     <addaction name="openSettings"/>
+    <addaction name="separator"/>
    </widget>
    <addaction name="fileMenu"/>
   </widget>
