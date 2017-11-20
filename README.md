@@ -14,5 +14,8 @@ To Run:
 
     (Load Database File)
 
-    -File > Open Script
+    -File > Open Script (Example .db File included, TF10_AEW_2017108.db)
+    
+Current Bugs:
+    pModel won't change when run on 2 different instances, sModel will
 
