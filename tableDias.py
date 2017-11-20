@@ -20,7 +20,7 @@ class QuickNote(QtWidgets.QDialog, uic.loadUiType('ui/quickNote.ui')[0]):
         self.accept()
 
 
-class CpViewer(QtWidgets.QDialog, uic.loadUiType('ui/cpViewer.ui')[0]):
+class CpViewer(QtWidgets.QDialog, uic.loadUiType('ui/cpviewer.ui')[0]):
     #Cp viewing dialog, does  nothign but displays the content of a cp
     def __init__(self, cp, parent = None):
         QtWidgets.QDialog.__init__(self, parent)
