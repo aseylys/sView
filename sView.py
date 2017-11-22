@@ -65,8 +65,7 @@ class MainWindow(base, form):
         self.addStep.clicked.connect(self.addpStep)
         self.delStep.clicked.connect(self.delpStep)
 
-        #self.acceptBut.clicked.connect(lambda: self.fd('A'))
-        self.acceptBut.clicked.connect(self.fdA)
+        self.acceptBut.clicked.connect(lambda: self.fd('A'))
         self.rejectBut.clicked.connect(lambda: self.fd('R'))
         ##################################4####
         
@@ -470,13 +469,57 @@ class MainWindow(base, form):
             self.pActsLabel.setStyleSheet('')
 
 
-    def fdA(self):
+    def fd(self, action):
 
         #Preforms necessary operations after FD approval or rejection
         _row = self.pTable.currentIndex().row()
 
-        print(self.pModel.data(self.pModel.index(_row, 7), role = self.DR))
-        print(self.pModel.setData(self.pModel.index(_row, 7), 'Approved'))
+        if action == 'A':
+            #If approved pushes the PACR into the script
+            steps = self.pModel.data(self.pModel.index(_row, 6), role = self.DR).split(';')
+            desc = self.pModel.data(self.pModel.index(_row, 5), role = self.DR)
+
+            fdSig = str(os.getlogin() + ' ' + time.strftime("%x"))
+
+
+            self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
+            self.pActsNum.setText(str(int(self.pActsNum.text()) - 1))
+            self.fdLabel.setText(fdSig)
+
+
+            ##THIS IS WHERE THE ERROR STARTS
+            self.pModel.setData(self.pModel.index(_row, 8), fdSig)
+            self.pModel.setData(self.pModel.index(_row, 7), 'Approved')
+
+            self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
+            self.pActsNum.setText(str(int(self.pActsNum.text()) - 1))
+            self.fdLabel.setText(fdSig)
+
+            logging.info(' Approved PACR: ' + str(_row + 1))
+            self.cmdLabel.setText('Approved PACR: ' + str(_row + 1))
+
+            self.rejectBut.setEnabled(False)
+            self.acceptBut.setEnabled(False)
+            self.saveP.setEnabled(False)
+            self.pushP.setEnabled(False)
+            
+            #THIS SHOULDN'T CAUSE AN ERROR, BUT IT'S ASSUMING VALUES ARE 'NONE'
+            if not self.pacr2step(_row, steps, desc): self.warn('Unknown')
+
+
+        if action == 'R':
+            #If rejected pulls the PACR back to state 'Dev'
+            self.saveP.setEnabled(True)
+            self.pushP.setEnabled(True)
+            self.pModel.setData(self.pModel.index(_row, 7), 'Dev', QtCore.Qt.EditRole)
+            self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
+
+            logging.info(' Rejected PACR: ' + str(_row + 1))
+            self.cmdLabel.setText('Rejected PACR: ' + str(_row + 1))
+
+            self.rejectBut.setEnabled(False)
+            self.acceptBut.setEnabled(False)
+
         self.checkReview()
 
         
