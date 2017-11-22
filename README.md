@@ -22,31 +22,18 @@ Current Bugs:
     pModel won't change when run on 2 different instances or when editted, closed and attempted to re-edit. This might have something to do with non-async database connections..
     
     To replicate error
-        
         -Load Database
-        
         -Go to PACR tab
-        
         -'New PACR'
-        
         -Click on newly created row in left table
-        
         -Fill out the starred (*) fields
-        
         -'Save'
-        
         -'Push'
-        
         -Close program
-        
         -Re-open database
-        
         -Go to 'PACR' tab
-        
         -Click on the row that was created
-        
         -Click the 'Check Mark' button next to the 'FD' label
-        
         -This should've put 'Approved' in where 'Review' was and put in the main database on the 'Script' tab, but it doesn't
         
         
