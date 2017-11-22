@@ -32,3 +32,5 @@ Current Bugs:
         -Click on the row that was created
         -Click the 'Check Mark' button next to the 'FD' label
         -This should've put 'Approved' in where 'Review' was and put in the main database on the 'Script' tab, but it doesn't
+
+    This starts in the fd() function on line 472
