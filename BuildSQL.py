@@ -32,7 +32,7 @@ def joinFunc(g,column):
     return s
 
 groups = df.groupby(df['Step'].apply(rolling_group), as_index = False)
-groupFunct = lambda g: pd.Series([joinFunc(g, col) for col in g.columns],index = g.columns)
+groupFunct = lambda g: pd.Series([joinFunc(g, col) for col in g.columns], index = g.columns)
 df = groups.apply(groupFunct)
 
 #connects to database

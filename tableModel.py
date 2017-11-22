@@ -116,3 +116,4 @@ class PTableModel(QtSql.QSqlTableModel):
 
     def setData(self, index, value, role = QtCore.Qt.EditRole):
         return QtSql.QSqlTableModel.setData(self, index, value, role)
+

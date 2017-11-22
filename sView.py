@@ -65,7 +65,8 @@ class MainWindow(base, form):
         self.addStep.clicked.connect(self.addpStep)
         self.delStep.clicked.connect(self.delpStep)
 
-        self.acceptBut.clicked.connect(lambda: self.fd('A'))
+        #self.acceptBut.clicked.connect(lambda: self.fd('A'))
+        self.acceptBut.clicked.connect(self.fdA)
         self.rejectBut.clicked.connect(lambda: self.fd('R'))
         ##################################4####
         
@@ -78,9 +79,7 @@ class MainWindow(base, form):
         #updates the PACR labels and checks for updates to both tables
         if self.sModel and self.pModel:
             self.checkReview()
-            if self.tabWidget.currentIndex() != 1:
-                self.sModel.select()
-                self.pModel.select()
+            if self.tabWidget.currentIndex() == 0:
                 self.tableView.resizeColumnToContents(2)
                 self.tableView.resizeColumnToContents(3)
                 self.tableView.resizeRowsToContents()
@@ -98,7 +97,7 @@ class MainWindow(base, form):
 
     def closeEvent(self, event):
         #Resubmits everything to database on exit if models exists
-        if self.sModel and self.pModel:
+        if (self.sModel and self.pModel):
             logging.info(' Closing and Submitting...')
             self.sModel.submitAll()
             self.pModel.submitAll()
@@ -131,11 +130,10 @@ class MainWindow(base, form):
         def _conn():
             logging.info(' Connecting to: ' + file)
             self.cmdLabel.setText('Connecting to: ' + file)
-            self.scriptName = os.path.basename(file.replace('.db', '').replace('_', ' '))
-            self.setWindowTitle(self.scriptName + ' - sView')
+            scriptName = os.path.basename(file.replace('.db', '').replace('_', ' '))
+            self.setWindowTitle(scriptName + ' - sView')
             try:
-                db = QtSql.QSqlDatabase.addDatabase('QSQLITE')
-                db.setUserName(self.user)
+                db = QtSql.QSqlDatabase.addDatabase('QSQLITE', self.user)
                 db.setDatabaseName(file)
                 if not db.open():
                     QMessageBox.critical(None, 'Cannot Connect to DB',
@@ -151,7 +149,7 @@ class MainWindow(base, form):
         if not self.sModel:
             _conn()
         else:
-            QtSql.QSqlDatabase.removeDatabase(self.sModel.database().databaseName())
+            self.sModel.database().close()
             self.sModel.clear()
             self.pModel.clear()
             _conn()
@@ -274,25 +272,17 @@ class MainWindow(base, form):
 
         #Sets all the fields to selected row
         _row = index.row()
+        record = self.pModel.record(_row)
         self.idLabel.setText(str(_row + 1))
-        self.createdEdit.setText(self.pModel.data(self.pModel.index(_row, 0), 
-                                    role = self.DR))
-        self.authorEdit.setText(self.pModel.data(self.pModel.index(_row, 1), 
-                                    role = self.DR))
-        self.stepEdit.setText(self.pModel.data(self.pModel.index(_row, 2), 
-                                    role = self.DR))
-        self.typeBox.setCurrentIndex(self.typeBox.findText(self.pModel.data(self.pModel.index(_row, 3), 
-                                    role = self.DR), QtCore.Qt.MatchFixedString))
-        self.respBox.setCurrentIndex(self.respBox.findText(self.pModel.data(self.pModel.index(_row, 4), 
-                                    role = self.DR), QtCore.Qt.MatchFixedString))
-        self.rationale.setPlainText(self.pModel.data(self.pModel.index(_row, 5),
-                                    role = self.DR))
-        self.pSteps.populate(self.pModel.data(self.pModel.index(_row, 6),
-                                    role = self.DR))
-        self.stateLabel.setText(self.pModel.data(self.pModel.index(_row, 7), 
-                                    role = self.DR))
-        self.fdLabel.setText(self.pModel.data(self.pModel.index(_row, 8), 
-                                    role = self.DR))
+        self.createdEdit.setText(record.field(0).value())
+        self.authorEdit.setText(record.field(1).value())
+        self.stepEdit.setText(record.field(2).value())
+        self.typeBox.setCurrentIndex(self.typeBox.findText(record.field(3).value(), QtCore.Qt.MatchFixedString))
+        self.respBox.setCurrentIndex(self.respBox.findText(record.field(4).value(), QtCore.Qt.MatchFixedString))
+        self.rationale.setPlainText(record.field(5).value())
+        self.pSteps.populate(record.field(6).value())
+        self.stateLabel.setText(record.field(7).value())
+        self.fdLabel.setText(record.field(8).value())
 
         #Changes State style depending on state
         #Also changes button functinality
@@ -329,6 +319,7 @@ class MainWindow(base, form):
             self.delP.setEnabled(False)
 
 
+
     def resetPFields(self):
         #Resets all fields to their initial cofigs
         self.saveP.setEnabled(True)
@@ -351,6 +342,7 @@ class MainWindow(base, form):
             _row = self.pModel.rowCount()
 
             self.pModel.insertRow(_row)
+            record = self.pModel.record(_row)
             #Still haven't worked out the bugs for programitically setting curindex
             #self.pTable.setCurrentIndex(self.pModel.index(_row, 0))
             logging.info(' Created New PACR ID: ' + str(_row + 1))
@@ -365,7 +357,7 @@ class MainWindow(base, form):
 
     def savePacr(self):
         #Saves PACR and submits all to .db if the form is completed
-
+        self.pModel.database().transaction()
         #Steps and rationale don't have to be filled to be valid form
         def _save():
             #Private save funct, mostly to avoid copying lines of code
@@ -424,8 +416,11 @@ class MainWindow(base, form):
             self.cmdLabel.setText('Pushed PACR ID: ' + str(_row + 1))
             self.pModel.setData(self.pModel.index(_row, 7), 'Review')
             self.pushP.setEnabled(False)
+
+            if self.pModel.submit():
+                self.pModel.database().commit()
+                self.pModel.select()
             self.checkReview()
-            
         else: self.warn('Already Pushed')
 
 
@@ -436,8 +431,6 @@ class MainWindow(base, form):
 
                 #self.pModel.deleteRowFromTable(_row)
                 self.pModel.removeRow(_row)
-                if self.pModel.submitAll(): self.pModel.database().commit()
-                self.pModel.select()
                 logging.info(' Deleted PACR ID: ' + str(_row + 1))
                 self.cmdLabel.setText('Deleted PACR ID: ' + str(_row + 1))
                 self.checkReview()
@@ -477,55 +470,15 @@ class MainWindow(base, form):
             self.pActsLabel.setStyleSheet('')
 
 
-    def fd(self, action):
+    def fdA(self):
 
         #Preforms necessary operations after FD approval or rejection
         _row = self.pTable.currentIndex().row()
 
-        if action == 'A':
-            #If approved pushes the PACR into the script
-            steps = self.pModel.data(self.pModel.index(_row, 6), role = self.DR).split(';')
-            desc = self.pModel.data(self.pModel.index(_row, 5), role = self.DR)
-
-            fdSig = str(os.getlogin() + ' ' + time.strftime("%x"))
-
-            #self.pModel.approveP(_row, fdSig)
-
-            self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
-            self.pActsNum.setText(str(int(self.pActsNum.text()) - 1))
-            self.fdLabel.setText(fdSig)
-
-            self.pModel.setData(self.pModel.index(_row, 8), fdSig)
-            self.pModel.setData(self.pModel.index(_row, 7), 'Approved')
-
-            self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
-            self.pActsNum.setText(str(int(self.pActsNum.text()) - 1))
-            self.fdLabel.setText(fdSig)
-
-            logging.info(' Approved PACR: ' + str(_row + 1))
-            self.cmdLabel.setText('Approved PACR: ' + str(_row + 1))
-
-            self.rejectBut.setEnabled(False)
-            self.acceptBut.setEnabled(False)
-            self.saveP.setEnabled(False)
-            self.pushP.setEnabled(False)
-            if not self.pacr2step(_row, steps, desc): self.warn('Unknown')
-
-
-        if action == 'R':
-            #If rejected pulls the PACR back to state 'Dev'
-            self.saveP.setEnabled(True)
-            self.pushP.setEnabled(True)
-            self.pModel.setData(self.pModel.index(_row, 7), 'Dev', QtCore.Qt.EditRole)
-            self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
-
-            logging.info(' Rejected PACR: ' + str(_row + 1))
-            self.cmdLabel.setText('Rejected PACR: ' + str(_row + 1))
-
-            self.rejectBut.setEnabled(False)
-            self.acceptBut.setEnabled(False)
-
+        print(self.pModel.data(self.pModel.index(_row, 7), role = self.DR))
+        print(self.pModel.setData(self.pModel.index(_row, 7), 'Approved'))
         self.checkReview()
+
         
 
     def pacr2step(self, pRow, steps, desc):
