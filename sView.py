@@ -45,6 +45,8 @@ class MainWindow(base, form):
 
         self.tableView.clicked.connect(self.getSData)
 
+        #Refresh Button slot
+        self.refreshBut.clicked.connect(self.refresh)
         #Clipboard junk for copying CP
         self.cb = QApplication.clipboard()
         self.cb.clear(mode = self.cb.Clipboard)
@@ -73,15 +75,21 @@ class MainWindow(base, form):
         thread.start()
 
 
+    def refresh(self):
+        if self.sModel:
+            self.sModel.select()
+            self.pModel.select()
+            self.checkReview()
+            self.tableView.resizeColumnToContents(2)
+            self.tableView.resizeColumnToContents(3)
+            self.tableView.resizeRowsToContents()
+
+
     def timerUpdate(self):
         #The Actual timer funciton that is called every second, 
         #updates the PACR labels and checks for updates to both tables
-        if self.sModel and self.pModel:
-            self.checkReview()
-            if self.tabWidget.currentIndex() == 0:
-                self.tableView.resizeColumnToContents(2)
-                self.tableView.resizeColumnToContents(3)
-                self.tableView.resizeRowsToContents()
+        if self.tabWidget.currentIndex() == 0:
+            self.refresh()
 
 
     def settings(self):
@@ -145,13 +153,15 @@ class MainWindow(base, form):
                 self.warn('Unknown')
 
         #If attempting to open a different file while already connected, handle that
-        if not self.sModel:
-            _conn()
-        else:
-            self.sModel.database().close()
-            self.sModel.clear()
-            self.pModel.clear()
-            _conn()
+        if file:
+            if not self.sModel:
+                _conn()
+            else:
+                self.sModel.database().close()
+                self.sModel.clear()
+                self.pModel.database().close()
+                self.pModel.clear()
+                _conn()
 
 
     def buildModel(self, db, table):
@@ -169,14 +179,14 @@ class MainWindow(base, form):
         self.tableView.setModel(self.sModel)
         #Hide irrelevant cols
         self.tableView.setColumnHidden(4, True)
-        #self.tableView.setColumnHidden(6, True)
+        self.tableView.setColumnHidden(6, True)
         #Auto Resize cols
         self.tableView.resizeColumnToContents(2)
         self.tableView.resizeColumnToContents(3)
         self.tableView.resizeRowsToContents()
 
         #Build and formats the PACR Table
-        self.pModel = PTableModel(self, db)
+        self.pModel = QtSql.QSqlTableModel(self, db)
         self.pModel.setTable('PACR')
         self.pModel.setEditStrategy(QtSql.QSqlTableModel.OnFieldChange)
         self.pModel.select()
@@ -223,7 +233,7 @@ class MainWindow(base, form):
                     except FileNotFoundError:
                         self.warn('File Not Found')
                 
-            #Handles step execution
+            #Handles step execution/de-execution
             if action == stepx:
                 index = self.sModel.index(self.tableView.rowAt(pos.y()), 6)
                 self.sModel.setData(index, '1')
@@ -368,6 +378,9 @@ class MainWindow(base, form):
             self.pModel.setData(self.pModel.index(_row, 5), self.rationale.toPlainText())
             self.pModel.setData(self.pModel.index(_row, 6), self.pSteps.info())
 
+            if self.pModel.submit():
+                self.pModel.database().commit()
+
 
         #Fields that need to be completed for it to be valid
         fields = [self.createdEdit.text(), 
@@ -392,6 +405,8 @@ class MainWindow(base, form):
                         self.fdLabel.setText('')
                         self.checkReview()
 
+                    #Makes sure that the step number entered is valid and 
+                    #unless CHANGE/REMOVE is the option, makes sure there are no duplicates
                     if stepNum != 0 and int(stepNum) < self.sModel.rowCount() + 1:
                         if self.typeBox.currentText() == 'Add':
                             if stepNum not in _steps or stepNum == self.pModel.data(self.pModel.index(_row, 2), self.DR): _save()
@@ -420,10 +435,12 @@ class MainWindow(base, form):
                 self.pModel.database().commit()
                 self.pModel.select()
             self.checkReview()
+            
         else: self.warn('Already Pushed')
 
 
     def delPacr(self):
+        #Deletes PACR
         if self.pModel:
             if self.pModel.rowCount() > 0:
                 _row = self.pTable.currentIndex().row()
@@ -470,22 +487,20 @@ class MainWindow(base, form):
 
 
     def fd(self, action):
-
         #Preforms necessary operations after FD approval or rejection
         _row = self.pTable.currentIndex().row()
 
         if action == 'A':
             #If approved pushes the PACR into the script
             steps = self.pModel.data(self.pModel.index(_row, 6), role = self.DR).split(';')
+            print(steps)
             desc = self.pModel.data(self.pModel.index(_row, 5), role = self.DR)
 
             fdSig = str(os.getlogin() + ' ' + time.strftime("%x"))
 
-
             self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
             self.pActsNum.setText(str(int(self.pActsNum.text()) - 1))
             self.fdLabel.setText(fdSig)
-
 
             ##THIS IS WHERE THE ERROR STARTS
             self.pModel.setData(self.pModel.index(_row, 8), fdSig)
@@ -503,8 +518,12 @@ class MainWindow(base, form):
             self.saveP.setEnabled(False)
             self.pushP.setEnabled(False)
             
-            #THIS SHOULDN'T CAUSE AN ERROR, BUT IT'S ASSUMING VALUES ARE 'NONE'
-            if not self.pacr2step(_row, steps, desc): self.warn('Unknown')
+            if self.pacr2step(_row, steps, desc): 
+                if self.pModel.submit():
+                    self.pModel.database().commit()
+                    self.pModel.select()
+            else:
+                self.warn('Unknown')
 
 
         if action == 'R':

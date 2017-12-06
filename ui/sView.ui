@@ -364,6 +364,11 @@
                <string>SYS</string>
               </property>
              </item>
+             <item>
+              <property name="text">
+               <string>SOCC-ALL</string>
+              </property>
+             </item>
             </widget>
            </item>
            <item row="1" column="4">
@@ -523,6 +528,13 @@
          </property>
          <property name="scaledContents">
           <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="refreshBut">
+         <property name="text">
+          <string>Refresh</string>
          </property>
         </widget>
        </item>

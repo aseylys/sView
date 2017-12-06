@@ -31,7 +31,7 @@ class STableModel(QtSql.QSqlTableModel):
                     and 'GV SET' not in data.split('     ')[0] and 'CLK' not in data.split('     ')[0]):
                     if index.column() == 2: return QtCore.Qt.AlignCenter
 
-        #Coloring junk
+        #Coloring logic
         if role == QtCore.Qt.BackgroundRole:
             data = QtSql.QSqlTableModel.data(self, self.index(index.row(), 3), QtCore.Qt.DisplayRole)
             if data:
@@ -50,16 +50,20 @@ class STableModel(QtSql.QSqlTableModel):
 
 
     def editScript(self, change, sRow, steps, desc):
+        #Different options on script editing
+        #It's pretty self expalnantory
         self.database().transaction()
 
         if change == 'ADD':   
             for i in range(len(steps)):
+                print(len(steps))
                 _row = sRow + i
+                print(_row)
                 self.insertRow(_row)
-                self.setData(self.index(float(_row), 0), float(_row))
+                self.setData(self.index(_row, 0), _row)
                 for row in range(self.rowCount()):
                     if row >= _row:
-                        self.setData(self.index(float(row), 0), row + 1)
+                        self.setData(self.index(row, 0), row + 1)
                 self.setData(self.index(_row, 1), '')
                 self.setData(self.index(_row, 2), steps[i])
                 self.setData(self.index(_row, 3), desc)
@@ -70,50 +74,29 @@ class STableModel(QtSql.QSqlTableModel):
         if change == 'CHANGE':
             for i in range(len(steps)):
                 _row = sRow + i
-                self.setData(self.index(float(_row), 0), float(_row))
+                self.setData(self.index(_row, 0), _row)
                 for row in range(self.rowCount()):
                     if row >= _row:
-                        self.setData(self.index(float(row), 0), row + 1)
-                self.setData(self.index(_row, 1), '')
+                        self.setData(self.index(row, 0), row + 1)
+                self.setData(self.index(_row, 1), self.data(self.index(_row, 1), role = QtCore.Qt.DisplayRole))
                 self.setData(self.index(_row, 2), steps[i])
                 self.setData(self.index(_row, 3), desc)
-                self.setData(self.index(_row, 4), '')
-                self.setData(self.index(_row, 5), '')
-                self.setData(self.index(_row, 6), '')
+                self.setData(self.index(_row, 4), self.data(self.index(_row, 4), role = QtCore.Qt.DisplayRole))
+                self.setData(self.index(_row, 5), self.data(self.index(_row, 5), role = QtCore.Qt.DisplayRole))
+                self.setData(self.index(_row, 6), self.data(self.index(_row, 6), role = QtCore.Qt.DisplayRole))
 
         if change == 'REMOVE':
             self.removeRow(sRow)
             for row in range(self.rowCount()):
                 if row >= sRow:
-                    self.setData(self.index(row, 0), float(row))
+                    self.setData(self.index(row, 0), row)
 
         if self.submitAll(): 
             self.database().commit()
             self.select()
             return True
         else:
+            #If for some reason the database wasn't updated, 
+            #it'll roll it's last change back
             self.database().rollback() 
             return False
-
-
-class PTableModel(QtSql.QSqlTableModel):
-    #Model for the PACR List which connects to the PACR table in the .db
-    def __init__(self, parent = None, db = QtSql.QSqlDatabase()):
-        QtSql.QSqlTableModel.__init__(self, parent, db)
-
-
-    def headerData(self, section, orientation, role = QtCore.Qt.DisplayRole):
-        return super(QtSql.QSqlTableModel, self).headerData(section, orientation, role)
-
-
-    def flags(self, index):
-        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable
-
-
-    def data(self, index, role):
-        return QtSql.QSqlTableModel.data(self, index, role)
-
-
-    def setData(self, index, value, role = QtCore.Qt.EditRole):
-        return QtSql.QSqlTableModel.setData(self, index, value, role)
-
