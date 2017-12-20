@@ -508,7 +508,7 @@
           </sizepolicy>
          </property>
          <property name="text">
-          <string>PCR Actions:</string>
+          <string>PACR Actions:</string>
          </property>
          <property name="scaledContents">
           <bool>true</bool>

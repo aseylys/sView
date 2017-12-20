@@ -11,9 +11,7 @@ class STableModel(QtSql.QSqlTableModel):
 
 
     def headerData(self, section, orientation, role = QtCore.Qt.DisplayRole):
-        #Names the last section
-        if section == 5 and orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            return 'Notes'
+        #sets header data
         return super(QtSql.QSqlTableModel, self).headerData(section, orientation, role)
 
 
@@ -27,21 +25,26 @@ class STableModel(QtSql.QSqlTableModel):
         if role == QtCore.Qt.TextAlignmentRole:
             data = QtSql.QSqlTableModel.data(self, self.index(index.row(), 2), QtCore.Qt.DisplayRole)
             if data:
-                if (not utils.getCP(data).endswith('.prc') and 'START' not in data.split('     ')[0]
-                    and 'GV SET' not in data.split('     ')[0] and 'CLK' not in data.split('     ')[0]):
-                    if index.column() == 2: return QtCore.Qt.AlignCenter
+                if index.column() == 2:
+                    #If it's not an executable step, align it in the center, else left 
+                    if (not utils.getCP(data).endswith('.prc') and 
+                        not bool(re.search('START|GV SET|CLK', data.split('     ')[0], re.I))):
+                            return QtCore.Qt.AlignCenter
+                    else: return QtCore.Qt.AlignLeft
 
         #Coloring logic
         if role == QtCore.Qt.BackgroundRole:
             data = QtSql.QSqlTableModel.data(self, self.index(index.row(), 3), QtCore.Qt.DisplayRole)
             if data:
-                if 'MILESTONE' in QtSql.QSqlTableModel.data(self, self.index(index.row(), 2), QtCore.Qt.DisplayRole):
-                    if 'ABORT'in data or 'CONTINGENCY' in data: return QtGui.QBrush(QtGui.QColor(204, 56, 36))
-                    else: return QtGui.QBrush(QtGui.QColor(72, 177, 196))
-            if '1' in QtSql.QSqlTableModel.data(self, self.index(index.row(), 6), QtCore.Qt.DisplayRole):
-                return QtGui.QBrush(QtCore.Qt.lightGray)
+                #If executed, color grey
+                if '1' in QtSql.QSqlTableModel.data(self, self.index(index.row(), 6), QtCore.Qt.DisplayRole):
+                    return QtGui.QBrush(QtGui.QColor(204, 201, 204))
+                else:
+                    #If not executed color accordingly, MILESTONE=blue, CONTIGENCY=red
+                    if 'MILESTONE' in QtSql.QSqlTableModel.data(self, self.index(index.row(), 2), QtCore.Qt.DisplayRole):
+                        if 'ABORT'in data or 'CONTINGENCY' in data: return QtGui.QBrush(QtGui.QColor(255, 131, 114))
+                        else: return QtGui.QBrush(QtGui.QColor(139, 183, 191))
             
-
         return QtSql.QSqlTableModel.data(self, index, role)
 
 
@@ -95,6 +98,7 @@ class STableModel(QtSql.QSqlTableModel):
             self.database().commit()
             self.select()
             return True
+
         else:
             #If for some reason the database wasn't updated, 
             #it'll roll it's last change back

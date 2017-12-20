@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, logging, utils, time
+import os, logging, utils, datetime, shutil
 from PyQt5.QtWidgets import QApplication, QWidget, QFileDialog, QMessageBox
 from PyQt5.QtWidgets import QMenu, QTableWidgetItem, QTableWidget
 from PyQt5 import uic, QtSql, QtCore, QtGui
@@ -7,11 +7,14 @@ from tableModel import *
 from settingsDia import Settings
 from tableDias import CpViewer, QuickNote
 
+
 logging.basicConfig(level = logging.INFO)
 form, base = uic.loadUiType('ui/sView.ui')
 
+
 class TimeThread(QtCore.QThread):
-    #Threaded Timer, allows for background updates every 1 second
+    #Threaded Timer, allows for background updates every 2.5 seconds
+    #Any sooner update really bogs down the system
     def __init__(self, parent = None):
         QtCore.QThread.__init__(self, parent)
         self.parent = parent
@@ -24,6 +27,7 @@ class TimeThread(QtCore.QThread):
         
         self.exec_()
 
+
 class MainWindow(base, form):
     def __init__(self):
         super(base, self).__init__()
@@ -35,7 +39,7 @@ class MainWindow(base, form):
         self.cpDir = ''
         self.DR = QtCore.Qt.DisplayRole
 
-        self.user = os.getlogin() + str(time.time()).split('.')[1]
+        self.user = os.getlogin() + datetime.datetime.now().strftime('%f')
 
         #Create Context Menu if right clicked
         self.tableView.setContextMenuPolicy(
@@ -43,6 +47,7 @@ class MainWindow(base, form):
         self.tableView.customContextMenuRequested.connect(
             self.tableContextMenu)
 
+        #Handles user clicking the table
         self.tableView.clicked.connect(self.getSData)
 
         #Refresh Button slot
@@ -52,6 +57,7 @@ class MainWindow(base, form):
         self.cb.clear(mode = self.cb.Clipboard)
 
         ###############PACR Tab###############
+        #Signals that handle the main PACR buttons
         self.saveP.clicked.connect(self.savePacr)
         self.newP.clicked.connect(self.newPacr)
         self.pushP.clicked.connect(self.pushPacr)
@@ -60,15 +66,17 @@ class MainWindow(base, form):
         #Only allows numbers in the step number box
         self.stepEdit.setValidator(QtGui.QIntValidator(0, 999, self.stepEdit))
 
+        #Sets author and time created with current user and DOY
         self.authorEdit.setText(self.user)
-        self.createdEdit.setText(time.strftime("%x"))
+        self.createdEdit.setText(datetime.datetime.now().strftime("%Y_%j"))
 
+        #Signals that handle the other button changes
         self.pTable.clicked.connect(self.getPData)
         self.addStep.clicked.connect(self.addpStep)
         self.delStep.clicked.connect(self.delpStep)
-
         self.acceptBut.clicked.connect(lambda: self.fd('A'))
         self.rejectBut.clicked.connect(lambda: self.fd('R'))
+        self.typeBox.currentIndexChanged.connect(self.tBoxChanged)
         ##################################4####
         
         thread = TimeThread(self)
@@ -76,13 +84,11 @@ class MainWindow(base, form):
 
 
     def refresh(self):
+        #Refreshes each table
         if self.sModel:
             self.sModel.select()
             self.pModel.select()
             self.checkReview()
-            self.tableView.resizeColumnToContents(2)
-            self.tableView.resizeColumnToContents(3)
-            self.tableView.resizeRowsToContents()
 
 
     def timerUpdate(self):
@@ -120,21 +126,24 @@ class MainWindow(base, form):
             'Already Pushed' : 'PACR was already pushed for review',
             'Out of Bounds' : 'Step Number is range of script',
             'Unknown' : 'An uknown error has occured',
-            'File Not Found' : 'The selected CP does not seem to be in the selected directory'
+            'File Not Found' : 'The selected CP does not seem to be in the selected directory',
+            'Conversion' : 'Conversion Error, something went wrong with converting XLS->db\n'
         }
 
         QMessageBox.critical(None, warn, warnMessage[warn], QMessageBox.Ok)
 
 
     def connDB(self):
+        today = str(datetime.datetime.now().timetuple().tm_yday)
         #Attempt to connect to SQL file chosen in Dialog
+        #If Excel is chose, it builds a database
         file = QFileDialog.getOpenFileName(self, 
             'Connect to Script',  
             os.path.dirname(os.path.realpath(__file__)),
-            'Database Files (*.db)' 
+            'Database Files (*.db);; Excel SpreadSheets (*.xls *.xlsx *.xlsm)' 
             )[0]
 
-        def _conn():
+        def _conn(file):
             logging.info(' Connecting to: ' + file)
             self.cmdLabel.setText('Connecting to: ' + file)
             scriptName = os.path.basename(file.replace('.db', '').replace('_', ' '))
@@ -152,22 +161,47 @@ class MainWindow(base, form):
                 logging.error(' An Error Occurred')
                 self.warn('Unknown')
 
+
         #If attempting to open a different file while already connected, handle that
         if file:
-            if not self.sModel:
-                _conn()
+            #If it's a database file load it
+            if os.path.splitext(file)[1] == '.db':
+                if not self.sModel:
+                    _conn(file)
+                else:
+                    self.sModel.database().close()
+                    self.sModel.clear()
+                    self.pModel.database().close()
+                    self.pModel.clear()
+                    _conn(file)
+
+            #If it's an excel file, import the converter and convert it
             else:
-                self.sModel.database().close()
-                self.sModel.clear()
-                self.pModel.database().close()
-                self.pModel.clear()
-                _conn()
+                #If it the maneuvers directory doesn't already exists
+                manDir = os.path.join(os.path.dirname(file), 'Maneuvers')
+                if not os.path.exists(manDir):
+                    os.makedirs(manDir)
+                
+                base = os.path.basename(os.path.splitext(file)[0])
+                newFile = os.path.join(manDir, base + '_' + today + '.db')
+                if os.path.isfile(newFile):
+                    #If there already is a .db file created for today
+                    logging.info(' Database Already Created')
+                    _conn(newFile)
+                else:
+                    from Converter import XL2DB
+                    #If there isn't a .db file in the Maneuvers directory create one
+                    logging.info(' Converting Database to location : ' + newFile)
+                    if XL2DB(file, newFile): 
+                        logging.info(' Successful Conversion')
+                        _conn(newFile)
+                    else: self.warn('Conversion')
 
 
     def buildModel(self, db, table):
         #Builds and formats the Script Table
         self.sModel = STableModel(self, db)
-        self.sModel.setTable(os.path.basename(table.replace('.db', '')))
+        self.sModel.setTable('SCRIPT')
         #Makes it so real-time changes to script update .db
         self.sModel.setEditStrategy(QtSql.QSqlTableModel.OnFieldChange)
 
@@ -295,6 +329,7 @@ class MainWindow(base, form):
 
         #Changes State style depending on state
         #Also changes button functinality
+        #(Not the prettiest of code blocks)
         if self.stateLabel.text() == 'Dev':
             self.stateLabel.setStyleSheet('background-color: rgb(128, 128, 128); font: 75 8pt "MS Shell Dlg 2";')
             self.acceptBut.setEnabled(False)
@@ -308,6 +343,7 @@ class MainWindow(base, form):
                 self.saveP.setEnabled(False)
                 self.delP.setEnabled(False)
                 self.pushP.setEnabled(False)
+
         elif self.stateLabel.text() == 'Review':
             self.stateLabel.setStyleSheet('background-color: rgb(255, 255, 0); font: 75 8pt "MS Shell Dlg 2";')
             self.acceptBut.setEnabled(True)
@@ -319,6 +355,7 @@ class MainWindow(base, form):
                 self.saveP.setEnabled(False)
                 self.delP.setEnabled(False)
             self.pushP.setEnabled(False)
+
         else:
             self.stateLabel.setStyleSheet('background-color: rgb(85, 255, 0); font: 75 8pt "MS Shell Dlg 2";')
             self.acceptBut.setEnabled(False)
@@ -327,6 +364,19 @@ class MainWindow(base, form):
             self.pushP.setEnabled(False)
             self.delP.setEnabled(False)
 
+        #Disables adding and removing PACR steps if PACR type is Remove
+        self.tBoxChanged()
+
+
+    def tBoxChanged(self):
+        #Handles the PACR type combox box signal change
+        #If type is Remove, disallow any CP steps to be added or deleted
+        if self.typeBox.currentText() == 'Remove':
+            self.addStep.setEnabled(False)
+            self.delStep.setEnabled(False)
+        else:
+            self.addStep.setEnabled(True)
+            self.delStep.setEnabled(True)
 
 
     def resetPFields(self):
@@ -335,7 +385,7 @@ class MainWindow(base, form):
         self.pushP.setEnabled(True)
         self.idLabel.setText('')
         self.authorEdit.setText(self.user)
-        self.createdEdit.setText(time.strftime("%x"))
+        self.createdEdit.setText(datetime.datetime.now().strftime('%f'))
         self.stepEdit.setText('')
         self.typeBox.setCurrentIndex(0) 
         self.respBox.setCurrentIndex(0)
@@ -493,16 +543,14 @@ class MainWindow(base, form):
         if action == 'A':
             #If approved pushes the PACR into the script
             steps = self.pModel.data(self.pModel.index(_row, 6), role = self.DR).split(';')
-            print(steps)
             desc = self.pModel.data(self.pModel.index(_row, 5), role = self.DR)
 
-            fdSig = str(os.getlogin() + ' ' + time.strftime("%x"))
+            fdSig = str(os.getlogin() + ' ' + datetime.datetime.now().strftime('%f'))
 
             self.stateLabel.setText(str(self.pModel.data(self.pModel.index(_row, 7), role = self.DR)))
             self.pActsNum.setText(str(int(self.pActsNum.text()) - 1))
             self.fdLabel.setText(fdSig)
 
-            ##THIS IS WHERE THE ERROR STARTS
             self.pModel.setData(self.pModel.index(_row, 8), fdSig)
             self.pModel.setData(self.pModel.index(_row, 7), 'Approved')
 
@@ -518,6 +566,7 @@ class MainWindow(base, form):
             self.saveP.setEnabled(False)
             self.pushP.setEnabled(False)
             
+            #If PACR was successfully added to script, commit to database
             if self.pacr2step(_row, steps, desc): 
                 if self.pModel.submit():
                     self.pModel.database().commit()
