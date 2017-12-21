@@ -31,6 +31,9 @@ class STableModel(QtSql.QSqlTableModel):
                         not bool(re.search('START|GV SET|CLK', data.split('     ')[0], re.I))):
                             return QtCore.Qt.AlignCenter
                     else: return QtCore.Qt.AlignLeft
+                #Aligns step # and timing cols
+                if index.column() in [0, 1, 6]:
+                    return QtCore.Qt.AlignTop | QtCore.Qt.AlignHCenter
 
         #Coloring logic
         if role == QtCore.Qt.BackgroundRole:
@@ -84,9 +87,10 @@ class STableModel(QtSql.QSqlTableModel):
                 self.setData(self.index(_row, 1), self.data(self.index(_row, 1), role = QtCore.Qt.DisplayRole))
                 self.setData(self.index(_row, 2), steps[i])
                 self.setData(self.index(_row, 3), desc)
-                self.setData(self.index(_row, 4), self.data(self.index(_row, 4), role = QtCore.Qt.DisplayRole))
+                self.setData(self.index(_row, 4), '')
                 self.setData(self.index(_row, 5), self.data(self.index(_row, 5), role = QtCore.Qt.DisplayRole))
-                self.setData(self.index(_row, 6), self.data(self.index(_row, 6), role = QtCore.Qt.DisplayRole))
+                #De-execute step
+                self.setData(self.index(_row, 6), '')
 
         if change == 'REMOVE':
             self.removeRow(sRow)

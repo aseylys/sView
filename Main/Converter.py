@@ -13,7 +13,7 @@ def XL2DB(excelPath, outPath):
 
         def _joinFunc(g,column):
             col = g[column]
-            joiner = "/" if column == "Milestone/Activity - Mnemonic" else ","
+            joiner = "/" if column == "Milestone/Activity - Mnemonic" else ""
             s = joiner.join([str(each) for each in col if notnull(each)])
             s = re.sub("(?<=&)" + joiner, ' ', s) #joiner = " "
             s = re.sub("(?<=-)" + joiner, '', s) #joiner = ""
@@ -26,12 +26,12 @@ def XL2DB(excelPath, outPath):
         #maneuver script
         df = xl.parse(xl.sheet_names[-1], verbose = True)
 
-        #Adds Notes and Exec Cols
+        #Adds Notes and Exec
         df['Notes'] = ''
-        df['Exec'] = ''
+        df['Execution'] = ''
 
         #Automatic Cleaning
-        df.columns = ['Step', 'Timing', 'Milestone/Activity - Mnemonic', 'R-Description', 'Total', 'Notes', 'Exec']
+        df.columns = ['Step', 'Timing', 'Milestone/Activity - Mnemonic', 'R-Description', 'Total', 'Notes', 'Execution']
         df.replace('*', '')
 
         groups = df.groupby(df['Step'].apply(_rolling_group), as_index = False)

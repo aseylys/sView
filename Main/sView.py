@@ -32,6 +32,8 @@ class MainWindow(base, form):
     def __init__(self):
         super(base, self).__init__()
         self.setupUi(self)
+
+        #Simple initial vars
         self.openMenu.triggered.connect(self.connDB)
         self.openSettings.triggered.connect(self.settings)
         self.sModel = None
@@ -39,6 +41,9 @@ class MainWindow(base, form):
         self.cpDir = ''
         self.DR = QtCore.Qt.DisplayRole
 
+        #The user is has to be unique, regardless of the username of the station
+        #being worked on, if the username isn't unique it will kick off
+        #the other person witht he same username
         self.user = os.getlogin() + datetime.datetime.now().strftime('%f')
 
         #Create Context Menu if right clicked
@@ -52,6 +57,7 @@ class MainWindow(base, form):
 
         #Refresh Button slot
         self.refreshBut.clicked.connect(self.refresh)
+
         #Clipboard junk for copying CP
         self.cb = QApplication.clipboard()
         self.cb.clear(mode = self.cb.Clipboard)
@@ -79,6 +85,7 @@ class MainWindow(base, form):
         self.typeBox.currentIndexChanged.connect(self.tBoxChanged)
         ##################################4####
         
+        #Begin timer thread on startup
         thread = TimeThread(self)
         thread.start()
 
@@ -89,6 +96,7 @@ class MainWindow(base, form):
             self.sModel.select()
             self.pModel.select()
             self.checkReview()
+            self.tableView.resizeRowsToContents()
 
 
     def timerUpdate(self):
@@ -211,9 +219,11 @@ class MainWindow(base, form):
         self.sModel.setFilter('1=1 ORDER BY Step * 1 ASC')
         self.sModel.select()
         self.tableView.setModel(self.sModel)
+
         #Hide irrelevant cols
+        self.tableView.horizontalHeader().moveSection(6, 2)
         self.tableView.setColumnHidden(4, True)
-        self.tableView.setColumnHidden(6, True)
+
         #Auto Resize cols
         self.tableView.resizeColumnToContents(2)
         self.tableView.resizeColumnToContents(3)
@@ -225,6 +235,7 @@ class MainWindow(base, form):
         self.pModel.setEditStrategy(QtSql.QSqlTableModel.OnFieldChange)
         self.pModel.select()
         self.pTable.setModel(self.pModel)
+
         #Hide irrelevant cols
         self.pTable.setColumnHidden(0, True)
         self.pTable.setColumnHidden(1, True)
@@ -270,10 +281,9 @@ class MainWindow(base, form):
             #Handles step execution/de-execution
             if action == stepx:
                 index = self.sModel.index(self.tableView.rowAt(pos.y()), 6)
-                self.sModel.setData(index, '1')
+                self.sModel.setData(index, datetime.datetime.utcnow().strftime('%Y/%j %H:%M:%S'))
                 logging.info(' Executed Step: ' + str(_row + 1))
                 self.cmdLabel.setText('Executed Step: ' + str(_row + 1))
-                
             if action == stepdx:
                 index = self.sModel.index(self.tableView.rowAt(pos.y()), 6)
                 self.sModel.setData(index, '')
@@ -299,12 +309,12 @@ class MainWindow(base, form):
         if data.strip():
             if _modifiers == QtCore.Qt.ControlModifier:
                 params = utils.getParams(data)
-                logging.info(' Copied Params: ' + params)
+                if params: logging.info(' Copied Params: ' + params)
                 #self.cmdLabel.setText('Copied Params: ' + params)
                 self.cb.setText(params, mode = self.cb.Clipboard)
             else:
                 cb_cp = utils.getCP(data)
-                logging.info(' Copied CP: ' + cb_cp)
+                if cb_cp: logging.info(' Copied CP: ' + cb_cp)
                 #self.cmdLabel.setText('Copied CP: ' + cb_cp)
                 self.cb.setText(cb_cp, mode = self.cb.Clipboard)
 
@@ -328,12 +338,13 @@ class MainWindow(base, form):
         self.fdLabel.setText(record.field(8).value())
 
         #Changes State style depending on state
-        #Also changes button functinality
+        #Also changes button functionality
         #(Not the prettiest of code blocks)
         if self.stateLabel.text() == 'Dev':
             self.stateLabel.setStyleSheet('background-color: rgb(128, 128, 128); font: 75 8pt "MS Shell Dlg 2";')
             self.acceptBut.setEnabled(False)
             self.rejectBut.setEnabled(False)
+
             #Only the user who created the PACR can edit it
             if self.pModel.data(self.pModel.index(_row, 1), role = self.DR) == self.user:
                 self.saveP.setEnabled(True)
@@ -354,7 +365,7 @@ class MainWindow(base, form):
             else: 
                 self.saveP.setEnabled(False)
                 self.delP.setEnabled(False)
-            self.pushP.setEnabled(False)
+                self.pushP.setEnabled(False)
 
         else:
             self.stateLabel.setStyleSheet('background-color: rgb(85, 255, 0); font: 75 8pt "MS Shell Dlg 2";')
@@ -377,6 +388,18 @@ class MainWindow(base, form):
         else:
             self.addStep.setEnabled(True)
             self.delStep.setEnabled(True)
+
+            #Fills data if changing a step
+            if self.typeBox.currentText() == 'Change':
+                _row = int(self.stepEdit.text()) - 1
+                if _row < self.sModel.rowCount() + 1:
+                    record = self.sModel.record(_row)
+                    self.rationale.setPlainText(record.field(3).value())
+                    step = record.field(2).value()
+                    cp = utils.getCP(step)
+                    if cp:
+                        cp = cp.replace('.prc', '') + '(' + utils.getParams(step) + ')'
+                        self.pSteps.populate(cp)
 
 
     def resetPFields(self):
